@@ -1,0 +1,37 @@
+---
+title: "How to use"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{how-to-use}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(simcovariates)
+```
+
+
+```{r}
+x <- gen_data(
+  N = 100,
+  b_trt = log(0.17),
+  b_X = -log(0.5),
+  b_EM = -log(0.67),
+  b_0 = -0.62,
+  meanX = c(0.6, 0.6),
+  sdX = c(0.4, 0.4),
+  meanX_EM = c(0.6, 0.6),
+  sdX_EM = c(0.4, 0.4),
+  corX = 0.2,
+  allocation = 2/3)
+
+head(x)
+```

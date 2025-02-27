@@ -16,6 +16,7 @@
 #' @return Data frame of `X`, `trt` and `y`
 #'
 #' @importFrom MASS mvrnorm
+#' @importFrom dplyr relocate mutate
 #' @export
 #'
 #' @examples
@@ -86,8 +87,8 @@ gen_data <- function(N, b_trt, b_X, b_EM, b_0,
            X0 = 1) |>
     # add interaction terms
     mutate(across(all_of(EM_names), ~ . * trt)) |>
-    relocate(X0) |>
-    relocate(trt, .after = last_col())
+    dplyr::relocate(X0) |>
+    dplyr::relocate(trt, .after = last_col())
 
   # generate outcomes using regression
   # linear predictor

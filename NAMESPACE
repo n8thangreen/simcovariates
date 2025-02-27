@@ -2,3 +2,5 @@
 
 export(gen_data)
 importFrom(MASS,mvrnorm)
+importFrom(dplyr,mutate)
+importFrom(dplyr,relocate)
