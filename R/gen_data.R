@@ -1,175 +1,147 @@
 
 #' Generate simulated datasets of IPD covariates and outcome for a trial
 #'
-#' @param N Total number of patients
-#' @param b_trt `b` coefficient for active treatment vs. common comparator
-#' @param meanX Mean vector of each normally-distributed covariate `X`
-#' @param sdX Standard deviation vector of each covariate `X`
-#' @param b_X `b` coefficients for each prognostic variable `X`
-#' @param meanX_EM Mean vector of each normally-distributed EM covariate `X`
-#' @param sdX_EM Standard deviation vector of each EM covariate `X`
-#' @param b_EM `b` coefficients effect modifiers
-#' @param prob_X_bin Probability for each binary distributed covariate `X`
-#' @param b_X_bin `b` coefficients for each prognostic variable `X`
-#' @param prob_EM_bin Probability for each binary distributed EM covariate `X`
-#' @param b_EM_bin `b` coefficients effect modifiers
-#' @param b_0 Intercept coefficient
-#' @param corX Covariate correlation coefficient of `X`
-#' @param allocation Allocation to active treatment as proportion of total; 0 to 1
-#' @param sigma Standard deviation of outcome; optional
-#' @param family Family object
-#' @return Data frame of `X`, `trt` and `y`
+#' @param N
+#' @param b_0
+#' @param b_trt
+#' @param covariate_defns
+#' @param b_prognostic
+#' @param b_effect_modifier
+#' @param cor_matrix Applies to all latent covariates
+#' @param trt_assignment
+#' @param error_params
+#' @param family
 #'
-#' @importFrom MASS mvrnorm
-#' @importFrom dplyr relocate mutate
+#' @returns Data frame of simulated IPD
 #' @export
 #'
 #' @examples
 #'
-#' \dontrun{
-#' x <- gen_data(
-#'  N = 100,
-#'  b_trt = log(0.17),
-#'  b_X = -log(0.5),
-#'  b_EM = -log(0.67),
-#'  b_0 = -0.62,
-#'  meanX = c(0.6, 0.6),
-#'  sdX = c(0.4, 0.4),
-#'  meanX_EM = c(0.6, 0.6),
-#'  sdX_EM = c(0.4, 0.4),
-#'  corX = 0.2,
-#'  allocation = 2/3)
-#'
-#' head(x)
-#' }
-gen_data_orig <- function(N, b_trt,
-                          # continuous covariates
-                          meanX = NULL, sdX = NULL, b_X = NULL,
-                          meanX_EM = NULL, sdX_EM = NULL, b_EM = NULL,
-                          # binary covariates
-                          prob_X_bin = NULL, b_X_bin = NULL,
-                          prob_EM_bin = NULL, b_EM_bin = NULL,
-                          #
-                          b_0,
-                          corX, allocation,
-                          sigma = 1,
-                          family = binomial("logit")) {
+gen_data <- function(N, b_0, b_trt,
+                     covariate_defns,
+                     b_prognostic = NULL,
+                     b_effect_modifier = NULL,
+                     cor_matrix = NULL,
+                     trt_assignment = list(prob_trt1 = 0.5),
+                     error_params = list(sd = 1.0),
+                     family = gaussian(link = "identity")) {
 
-  n_X <- length(meanX)
-  n_X_EM <- length(meanX_EM)
-  n_X_bin <- length(prob_X_bin)
-  n_EM_bin <- length(prob_EM_bin)
+  data <- data.frame(id = 1:N)
 
-  n_c <- n_X + n_X_EM + n_X_bin + n_EM_bin
-  if (n_c == 0) stop("No covariates specified.", call. = FALSE)
+  covariate_defns <- assign_default_covariate_names(covariate_defns)
 
-  # internally build the mean and sd vectors for mvrnorm
-  # for binary latent variables, we ALWAYS use mean=0, sd=1
-  # user does not need to know or provide this
-  all_means <- c(meanX, meanX_EM, rep(0, n_X_bin), rep(0, n_EM_bin))
-  all_sds <- c(sdX, sdX_EM, rep(1, n_X_bin), rep(1, n_EM_bin))
+  # collect info for all covariates that rely on Normal distribution
+  # (continuous actual, binary latent)
+  normal_names <- c()
+  normal_means <- c()
+  normal_sds <- c()
+  bin_thresholds <- list()  # store thresholds keyed by covariate name
 
-  # repeat single value
-  if (length(b_X) == 1) {
-    b_X <- rep(b_X, n_X)
-  }
-  if (length(b_EM) == 1) {
-    b_EM <- rep(b_EM, n_X_EM)
-  }
-  if (length(b_X_bin) == 1) {
-    b_X_bin <- rep(b_X_bin, n_X_bin)
-  }
-  if (length(b_EM_bin) == 1) {
-    b_EM_bin <- rep(b_EM_bin, n_EM_bin)
-  }
+  for (name in names(covariate_defns)) {
+    cov_def <- covariate_defns[[name]]
+    cov_type_obj <- cov_def$type
 
-  # create clear names for all variables
-  PF_cont_names <- if (n_X > 0) paste0("PF_cont_", 1:n_X) else NULL
-  EM_cont_names <- if (n_X_EM > 0) paste0("EM_cont_", 1:n_X_EM) else NULL
-  PF_bin_names <- if (n_X_bin > 0) paste0("PF_bin_", 1:n_X_bin) else NULL
-  EM_bin_names <- if (n_EM_bin > 0) paste0("EM_bin_", 1:n_EM_bin) else NULL
+    if (inherits(cov_type_obj, "cts_var_type")) {
 
-  all_names <- c(PF_cont_names, EM_cont_names, PF_bin_names, EM_bin_names)
+      normal_names <- c(normal_names, name)
+      normal_means <- c(normal_means, cov_type_obj$mean)
+      normal_sds <- c(normal_sds, cov_type_obj$sd)
 
-  # set correlation matrix
-  if (is.matrix(corX)) {
-    rho <- corX
-  } else {
-    rho <- matrix(corX, n_c, n_c)
-    diag(rho) <- 1
-  }
+    } else if (inherits(cov_type_obj, "bin_var_type")) {
 
-  cov.mat <- cor2cov(rho, all_sds)
-  diag(rho) <- rep(1, n_c)
-  N_active <- round(N*allocation)  # number of patients under active treatment
-  N_control <- N - N_active        # number of patients under control
+      normal_names <- c(normal_names, name)
+      normal_means <- c(normal_means, cov_type_obj$latent_mean)
+      normal_sds <- c(normal_sds, cov_type_obj$latent_sd)
+      bin_thresholds[[name]] <- cov_type_obj$threshold
 
-  # simulate correlated continuous covariates using multivariate normal
-  # patients under active treatment
-  X_active <-
-    as.data.frame(
-      MASS::mvrnorm(n = N_active,
-                    mu = all_means,
-                    Sigma = cov.mat))
-
-  # patients under control treatment
-  X_control <-
-    as.data.frame(
-      MASS::mvrnorm(n = N_control,
-                    mu = all_means,
-                    Sigma = cov.mat))
-
-  # all patients
-  final_data <- rbind(X_active, X_control)
-  colnames(final_data) <- all_names
-
-  # use probability for threshold
-  if (n_X_bin > 0) {
-    thresholds_X <- qnorm(prob_X_bin)
-
-    for (i in seq_len(n_X_bin)) {
-      final_data[[PF_bin_names[i]]] <-
-        ifelse(final_data[[PF_bin_names[i]]] < thresholds_X[i], 1, 0)
+    } else {
+      stop(paste("Unsupported covariate type object for covariate '", name, "'.", sep=""))
     }
   }
 
-  if (n_EM_bin > 0) {
-    thresholds_EM <- qnorm(prob_EM_bin)
+  # generate correlated Normal variables (for continuous and latent binary)
 
-    for (i in seq_len(n_EM_bin)) {
-      final_data[[EM_bin_names[i]]] <-
-        ifelse(final_data[[EM_bin_names[i]]] < thresholds_EM[i], 1, 0)
+  if (length(normal_names) > 0) {
+
+    if (is.null(cor_matrix)) {
+      # if no correlation matrix, generate independently
+      generated_normal_data <- matrix(NA, nrow = N, ncol = length(normal_names))
+
+      for (i in seq_along(normal_names)) {
+        generated_normal_data[, i] <-
+          rnorm(N, mean = normal_means[i], sd = normal_sds[i])
+      }
+
+      colnames(generated_normal_data) <- normal_names
+
+    } else {
+      # ensure cor_matrix dimensions and names match all normal_names
+      if (!all(rownames(cor_matrix) %in% normal_names) ||
+          !all(normal_names %in% rownames(cor_matrix))) {
+        stop("`cor_matrix` row/column names must match names of continuous
+             and binary covariates in `covariate_defns`.")
+      }
+
+      ordered_cor_matrix <- cor_matrix[normal_names, normal_names]
+
+      sigma_matrix <- diag(normal_sds) %*% ordered_cor_matrix %*% diag(normal_sds)
+
+      generated_normal_data <- MASS::mvrnorm(n = N, mu = normal_means, Sigma = sigma_matrix)
+      colnames(generated_normal_data) <- normal_names
+    }
+
+    for (col_name in normal_names) {
+      data[[col_name]] <- generated_normal_data[, col_name]
     }
   }
 
-  trt <- c(rep(1, round(N*allocation)),
-           rep(0, N - round(N*allocation)))
+  # apply thresholds for Binary covariates
+  for (bin_name in names(bin_thresholds)) {
+    data[[bin_name]] <- ifelse(data[[bin_name]] < bin_thresholds[[bin_name]], 1, 0)
+  }
 
-  PF_names <- c(PF_cont_names, PF_bin_names)
-  EM_names <- c(EM_cont_names, EM_bin_names)
+  # generate treatment assignment
+  prob_trt1 <- trt_assignment$prob_trt1
+  data$trt <- rbinom(N, size = 1, prob = prob_trt1)
 
-  design_mat <- cbind(Intercept = 1,
-                      as.matrix(final_data),
-                      trt = trt)
+  # calculate linear predictor
 
-  interaction_mat <- as.matrix(final_data[, EM_names, drop = FALSE]) * trt
-  final_design_mat <- cbind(design_mat, interaction_mat)
+  eta <- rep(b_0, N)
+  eta <- eta + data$trt * b_trt
 
-  b_prognostic <- c(b_X, b_X_bin)
-  b_interaction <- c(b_EM, b_EM_bin)
-  b_main_EM <- rep(0, length(EM_names))  # ?
+  if (!is.null(b_prognostic)) {
+    for (cov_name in names(b_prognostic)) {
 
-  betas <- c(b_0, b_prognostic, b_main_EM, b_trt, b_interaction)
+      if (!cov_name %in% names(data)) {
+        stop(paste("Prognostic covariate '", cov_name, "' not found.", sep=""))
+      }
 
-  linear_pred <- final_design_mat %*% betas
+      eta <- eta + data[[cov_name]] * b_prognostic[[cov_name]]
+    }
+  }
 
-  y <- switch(
+  if (!is.null(b_effect_modifier)) {
+    for (cov_name in names(b_effect_modifier)) {
+
+      if (!cov_name %in% names(data)) {
+        stop(paste("Effect modifier covariate '", cov_name, "' not found.", sep=""))
+      }
+
+      eta <- eta + data[[cov_name]] * data$trt * b_effect_modifier[[cov_name]]
+    }
+  }
+
+  # generate outcome
+
+  data$y <- switch(
     family$family,
-    "binomial" = rbinom(n=N, size=1, prob=family$linkinv(linear_pred)),
-    "gaussian" = rnorm(n=N, mean=linear_pred, sd=sigma),
-    "poisson"  = rpois(n=N, lambda=family$linkinv(linear_pred)),
+    "binomial" = rbinom(n = N, size = 1, prob = family$linkinv(eta)),
+    "gaussian" = rnorm(n = N, mean = eta, sd = error_params$sd),
+    "poisson"  = rpois(n = N, lambda = family$linkinv(eta)),
     stop("Unsupported family.")
   )
 
-  return(data.frame(final_data, trt, y))
+  data$true_eta <- eta
+
+  return(data)
 }
