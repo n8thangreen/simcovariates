@@ -24,6 +24,13 @@ cor_mat <- matrix(c(
   dimnames = list(c("X1", "X2", "X3", "X4"),
                   c("X1", "X2", "X3", "X4")))
 
+cor_mat_identity <- matrix(
+  diag(4),
+  nrow = 4,
+  byrow = TRUE,
+  dimnames = list(c("X1", "X2", "X3", "X4"),
+                  c("X1", "X2", "X3", "X4")))
+
 # coefficients for prognostic factors
 b_prog <- c(X1 = 0.7, X3 = -0.3, X4 = 2.0)
 
@@ -38,12 +45,25 @@ BC.IPD <- gen_data(
   covariate_defns = covariate_info,
   b_prognostic = b_prog,
   b_effect_modifier = b_em,
-  cor_matrix = cor_mat_for_cont_covs,
-  treatment_assignment = list(prob_trt1 = 0.5),
-  error_params = list(sd = 5),
+  cor_matrix = cor_mat,
+  trt_assignment = list(prob_trt1 = 0.5),
+  error_params = list(sd = 1),
+  family = gaussian(link = "identity")
+)
+
+
+BC.IPD <- gen_data(
+  N = 10000,
+  b_0 = 10,
+  b_trt = 2,
+  covariate_defns = covariate_info,
+  b_prognostic = b_prog,
+  b_effect_modifier = b_em,
+  cor_matrix = cor_mat_identity,
+  trt_assignment = list(prob_trt1 = 0),
+  error_params = list(sd = 1),
   family = gaussian(link = "identity")
 )
 
 head(BC.IPD)
 summary(BC.IPD)
-str(BC.IPD)
