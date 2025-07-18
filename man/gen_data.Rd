@@ -6,81 +6,25 @@
 \usage{
 gen_data(
   N,
-  b_trt,
-  meanX = NULL,
-  sdX = NULL,
-  b_X = NULL,
-  meanX_EM = NULL,
-  sdX_EM = NULL,
-  b_EM = NULL,
-  prob_X_bin = NULL,
-  b_X_bin = NULL,
-  prob_EM_bin = NULL,
-  b_EM_bin = NULL,
   b_0,
-  corX,
-  allocation,
-  sigma = 1,
-  family = binomial("logit")
+  b_trt,
+  covariate_defns,
+  b_prognostic = NULL,
+  b_effect_modifier = NULL,
+  cor_matrix = NULL,
+  trt_assignment = list(prob_trt1 = 0.5),
+  error_params = list(sd = 1),
+  family = gaussian(link = "identity")
 )
 }
 \arguments{
-\item{N}{Total number of patients}
+\item{cor_matrix}{Applies to all latent covariates}
 
-\item{b_trt}{\code{b} coefficient for active treatment vs. common comparator}
-
-\item{meanX}{Mean vector of each normally-distributed covariate \code{X}}
-
-\item{sdX}{Standard deviation vector of each covariate \code{X}}
-
-\item{b_X}{\code{b} coefficients for each prognostic variable \code{X}}
-
-\item{meanX_EM}{Mean vector of each normally-distributed EM covariate \code{X}}
-
-\item{sdX_EM}{Standard deviation vector of each EM covariate \code{X}}
-
-\item{b_EM}{\code{b} coefficients effect modifiers}
-
-\item{prob_X_bin}{Probability for each binary distributed covariate \code{X}}
-
-\item{b_X_bin}{\code{b} coefficients for each prognostic variable \code{X}}
-
-\item{prob_EM_bin}{Probability for each binary distributed EM covariate \code{X}}
-
-\item{b_EM_bin}{\code{b} coefficients effect modifiers}
-
-\item{b_0}{Intercept coefficient}
-
-\item{corX}{Covariate correlation coefficient of \code{X}}
-
-\item{allocation}{Allocation to active treatment as proportion of total; 0 to 1}
-
-\item{sigma}{Standard deviation of outcome; optional}
-
-\item{family}{Family object}
+\item{family}{}
 }
 \value{
-Data frame of \code{X}, \code{trt} and \code{y}
+Data frame of simulated IPD
 }
 \description{
 Generate simulated datasets of IPD covariates and outcome for a trial
-}
-\examples{
-
-\dontrun{
-x <- gen_data(
- N = 100,
- b_trt = log(0.17),
- b_X = -log(0.5),
- b_EM = -log(0.67),
- b_0 = -0.62,
- meanX = c(0.6, 0.6),
- sdX = c(0.4, 0.4),
- meanX_EM = c(0.6, 0.6),
- sdX_EM = c(0.4, 0.4),
- corX = 0.2,
- allocation = 2/3)
-
-head(x)
-}
 }

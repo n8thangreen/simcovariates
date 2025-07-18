@@ -42,18 +42,18 @@
 #'
 #' head(x)
 #' }
-gen_data <- function(N, b_trt,
-                     # continuous covariates
-                     meanX = NULL, sdX = NULL, b_X = NULL,
-                     meanX_EM = NULL, sdX_EM = NULL, b_EM = NULL,
-                     # binary covariates
-                     prob_X_bin = NULL, b_X_bin = NULL,
-                     prob_EM_bin = NULL, b_EM_bin = NULL,
-                     #
-                     b_0,
-                     corX, allocation,
-                     sigma = 1,
-                     family = binomial("logit")) {
+gen_data_orig <- function(N, b_trt,
+                          # continuous covariates
+                          meanX = NULL, sdX = NULL, b_X = NULL,
+                          meanX_EM = NULL, sdX_EM = NULL, b_EM = NULL,
+                          # binary covariates
+                          prob_X_bin = NULL, b_X_bin = NULL,
+                          prob_EM_bin = NULL, b_EM_bin = NULL,
+                          #
+                          b_0,
+                          corX, allocation,
+                          sigma = 1,
+                          family = binomial("logit")) {
 
   n_X <- length(meanX)
   n_X_EM <- length(meanX_EM)
